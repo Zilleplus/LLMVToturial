@@ -1,73 +1,147 @@
 #include <ctype.h>
+#include <string>
+#include <variant>
+#include <optional>
+#include <map>
+#include <tokens.hpp>
 
+class StringSourceReader
+{
+    public:
+        StringSourceReader(std::string source):
+            source(std::move(source)){}
 
-// The lexer returns tokens [0-255] if it is an unknown character, otherwise one
-// of these for known things.
-enum Token {
-  tok_eof = -1,
+        std::optional<char> getNextChar()
+        {
+            if(currentIndex >= source.length()){return {};}
+            return std::optional<char>{source.at(currentIndex++)};
+        }
 
-  // commands
-  tok_def = -2,
-  tok_extern = -3,
-
-  // primary
-  tok_identifier = -4,
-  tok_number = -5,
+        std::optional<char> peekNextChar()
+        {
+            if(currentIndex >= source.length()){return {};}
+            return std::optional<char>{source.at(currentIndex)};
+        }
+    private:
+        int currentIndex = 0;
+        std::string source;
 };
 
-static std::string IdentifierStr; // Filled in if tok_identifier
-static double NumVal;             // Filled in if tok_number
-
-
-/// gettok - Return the next token from standard input.
-static int gettok() 
+template<typename TSourceReader>
+class Lexer
 {
-  static int LastChar = ' ';
+    std::map<char,Token> specialCharaterTokens =
+    {
+        {'(',TokenOpenRBracket()},
+        {')',TokenCloseRBracket()},
+        {',',TokenComma()},
+        {'\n',TokenEol()}
+    };
 
-  // Skip any whitespace.
-  while (isspace(LastChar))
-    LastChar = getchar();
+public:
+    template<typename TSourceReader>
+    Lexer(TSourceReader reader): reader(reader){}
 
-  if (isalpha(LastChar)) 
-  { // identifier: [a-zA-Z][a-zA-Z0-9]*
-    IdentifierStr = LastChar;
-    while (isalnum((LastChar = getchar())))
-      IdentifierStr += LastChar;
+    std::optional<Token> tryReadCharacter(std::optional<char> c)
+    {
+        if(c.has_value())
+        {
+            auto sc = specialCharaterTokens.find(c.value());
+            return (sc == specialCharaterTokens.end())
+                ? std::optional<Token>{}
+                : sc->second;
+        }
+
+        return {};
+    }
+
+    std::optional<Token> tryReadIdentifier(std::optional<char> c)
+    {
+        if (c.has_value() && isalpha(c.value())) 
+        { // identifier: [a-zA-Z][a-zA-Z0-9]*
+            auto identifierStr = std::string("");
+            do
+            {
+                identifierStr += c.value();
+                c = reader.getNextChar();
+            }
+            while (c.has_value() && isalnum(c.value()));
+            
+             if (identifierStr == "def")
+               return Token(TokenDef());
+             if (identifierStr == "extern")
+               return Token(TokenExtern());
+
+            return Token(TokenIdentifier(std::move(identifierStr)));
+        }
+        return {};
+    }
+
+    std::optional<Token> tryReadNumber(std::optional<char> c)
+    {
+        if (c.has_value() &&(isdigit(c.value()) || c.value() == '.'))
+        {   // Number: [0-9.]+
+          std::string NumStr; 
+          do {
+            NumStr += c.value();
+            c = reader.getNextChar();
+          } while (c.has_value() 
+                  && (isdigit(c.value()) 
+                  || c.value() == '.'));
+        
+          return Token(TokenNumber(strtod(NumStr.c_str(), 0)));
+        }
+        return {};
+    }
     
-    if (IdentifierStr == "def")
-      return tok_def;
-    if (IdentifierStr == "extern")
-      return tok_extern;
-    return tok_identifier;
-  }
+    // comments get ignored -> so void
+    std::optional<char> skipOverComments(std::optional<char> c)
+    {
+        if (c.has_value() && c.value() == '#') 
+        {
+            // Comment until end of line.
+            do c = reader.getNextChar();
+            while ( c.has_value() 
+                    && (c.value() != EOF) 
+                    && (c.value() != '\n')
+                    && (c.value() != '\r'));
+        }
+        return c;
+    }
 
-  if (isdigit(LastChar) || LastChar == '.') {   // Number: [0-9.]+
-    std::string NumStr;
-    do {
-      NumStr += LastChar;
-      LastChar = getchar();
-    } while (isdigit(LastChar) || LastChar == '.');
-  
-    NumVal = strtod(NumStr.c_str(), 0);
-    return tok_number;
-  }
+    std::optional<char> skipOverWhiteSpace(std::optional<char> c)
+    {
+        while (c.has_value() && isspace(c.value()))
+            c = reader.getNextChar();
+        return c;
+    }
 
-  if (LastChar == '#') {
-    // Comment until end of line.
-    do
-      LastChar = getchar();
-    while (LastChar != EOF && LastChar != '\n' && LastChar != '\r');
-  
-    if (LastChar != EOF)
-      return gettok();
-  }
+    // gettok - Return the next token from standard input.
+    std::optional<Token>  getToken() 
+    {
+        std::optional<char> lastChar = reader.getNextChar();
 
- // Check for end of file.  Don't eat the EOF.
-  if (LastChar == EOF)
-    return tok_eof;
+        lastChar = skipOverWhiteSpace(lastChar);
+        lastChar = skipOverComments(lastChar);
+        lastChar = skipOverWhiteSpace(lastChar);
 
-  // Otherwise, just return the character as its ascii value.
-  int ThisChar = LastChar;
-  LastChar = getchar();
-  return ThisChar;
-}
+        if(!lastChar.has_value()){return {};}
+
+        auto number = tryReadNumber(lastChar);
+        if(number.has_value()){return number.value();}
+    
+        auto identifier = tryReadIdentifier(lastChar);
+        if(identifier.has_value()){return identifier.value();}
+
+        auto specialCharacter = tryReadCharacter(lastChar);
+        if(specialCharacter.has_value()){return specialCharacter.value();}
+
+        // Check for end of file.    Don't eat the EOF.
+        if (lastChar.value() == EOF)
+            return Token(TokenEof());
+    
+        return {}; // empty line !
+    }
+private:
+    TSourceReader reader;
+};

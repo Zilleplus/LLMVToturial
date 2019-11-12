@@ -4,6 +4,8 @@ if ( ${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR} )
 endif()
 ###
 
+add_compile_options("/std:c++latest")
+
 cmake_minimum_required (VERSION 2.6)
 project (LLVMDemo)
 
@@ -12,3 +14,4 @@ include_directories(lib/catch2)
 include_directories(lib/llvm)
 
 add_executable(main src/main.cpp)
+add_executable(testMain tests/testMain.cpp)
