@@ -1,6 +1,7 @@
 #include <lexer.hpp>
 #include <catch.hpp>
 #include <string>
+
 namespace Test{
 
     TEST_CASE("Lex simple example")
@@ -56,31 +57,42 @@ namespace Test{
         }
 
         auto testCode = std::string("\
-        # Compute the x'th fibonacci number.\
-        def fib(x)\
-          if x < 3 then\
-            1\
-          else\
-            fib(x-1)+fib(x-2)\
-        \
-        # This expression will compute the 40th number.\
-        fib(40)"); 
+        # Compute the x'th fibonacci number. \n\
+        def fib(x)"); 
 
         SECTION("Try simple example code")
         {
             StringSourceReader reader(testCode);
             auto sut = Lexer<StringSourceReader>(reader);
     
+            std::vector<Token> expected 
+            {
+                Token(TokenDef()),
+                Token(std::string("fib")),
+                Token(TokenOpenRBracket()),
+                Token(TokenIdentifier(std::string("x"))),
+                Token(TokenCloseRBracket())
+            };
+            auto expectedBegin = expected.begin();
             std::vector<Token> results;
-            while(true)
+
+            for(;;)
             {
                 auto res = sut.getToken();
                 if(res.has_value())
                 {
+                    INFO(std::string("returned token: ")+token_to_string(res.value()));
+                    REQUIRE(res.value().index() == (expectedBegin++)->index());
                     results.push_back(res.value());
                 }
-                else{break;}
+                else
+                {
+                    INFO("No more tokens detected");
+                    break;
+                }
             }
+
+            REQUIRE(results.size() == expected.size());
         }
     }
 }

@@ -39,7 +39,6 @@ class Lexer
     };
 
 public:
-    template<typename TSourceReader>
     Lexer(TSourceReader reader): reader(reader){}
 
     std::optional<Token> tryReadCharacter(std::optional<char> c)
@@ -109,9 +108,10 @@ public:
         return c;
     }
 
+    // also skip over return, we already record \n which is more then enough.
     std::optional<char> skipOverWhiteSpace(std::optional<char> c)
     {
-        while (c.has_value() && isspace(c.value()))
+        while (c.has_value() && (isspace(c.value()) || (c.value()=='\r')))
             c = reader.getNextChar();
         return c;
     }
