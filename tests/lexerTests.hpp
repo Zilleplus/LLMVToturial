@@ -42,6 +42,8 @@ namespace Test{
             REQUIRE(std::holds_alternative<TokenCloseRBracket>(res1));
             auto res2 = sut.tryReadCharacter(std::optional('(')).value();
             REQUIRE(std::holds_alternative<TokenOpenRBracket>(res2));
+            auto res3 = sut.tryReadCharacter(std::optional('\n')).value();
+            REQUIRE(std::holds_alternative<TokenEol>(res3));
         }
 
         SECTION("Check with comment")
@@ -56,9 +58,8 @@ namespace Test{
             REQUIRE(res.value() == expected);
         }
 
-        auto testCode = std::string("\
-        # Compute the x'th fibonacci number. \n\
-        def fib(x)"); 
+        auto testCode = 
+            std::string("\n # fibonacci. \n def fib(x)"); 
 
         SECTION("Try simple example code")
         {
@@ -67,6 +68,7 @@ namespace Test{
     
             std::vector<Token> expected 
             {
+                Token(TokenEol()),
                 Token(TokenDef()),
                 Token(std::string("fib")),
                 Token(TokenOpenRBracket()),
@@ -81,7 +83,7 @@ namespace Test{
                 auto res = sut.getToken();
                 if(res.has_value())
                 {
-                    INFO(std::string("returned token: ")+token_to_string(res.value()));
+                    INFO(std::string("returned token: ") + token_to_string(res.value()));
                     REQUIRE(res.value().index() == (expectedBegin++)->index());
                     results.push_back(res.value());
                 }

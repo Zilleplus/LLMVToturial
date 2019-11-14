@@ -55,8 +55,7 @@ std::string token_to_string(Token t)
                 return std::string("Extern"); 
             else if constexpr (std::is_same_v<T, TokenIdentifier>)
             {
-                auto identifier = std::get<TokenIdentifier>(token);
-                return std::string("Identifier with name=")+identifier.name; 
+                return std::string("Identifier with name = ")+token.name; 
             }
             else if constexpr (std::is_same_v<T, TokenNumber>)
                 return std::string("Number"); 
